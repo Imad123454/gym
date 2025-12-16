@@ -234,22 +234,26 @@ def verify_payment(request):
 
     # Optional: assign shift/class if ids provided
     if shift_id:
-        shift = TrainerShift.objects.get(id=shift_id)
+        shift = Shift.objects.get(id=shift_id, tenant=user.tenant)
         response_data["shift"] = {
-            "trainer": shift.trainer.user.username,
+            "user": shift.user.username,
             "day_of_week": shift.day_of_week,
-            "start_time": str(shift.shift_start_time),
-            "end_time": str(shift.shift_end_time)
+            "start_time": str(shift.start_time),
+            "end_time": str(shift.end_time)
         }
 
     if class_id:
-        cls = Class.objects.get(id=class_id)
-        response_data["class"] = {
-            "name": cls.name,
-            "trainer": cls.trainer.user.username,
-            "start_time": str(cls.start_time),
-            "end_time": str(cls.end_time)
-        }
+        try:
+            cls = Class.objects.get(id=class_id)
+            response_data["class"] = {
+                "name": cls.name,
+                "trainer": cls.trainer.user.username,
+                "start_time": str(cls.start_time),
+                "end_time": str(cls.end_time)
+            }
+        except Class.DoesNotExist:
+            response_data["class"] = None
+
 
     return Response({
         "message": "Payment verified, membership purchased & member created successfully!",
@@ -257,34 +261,34 @@ def verify_payment(request):
     })
 
 
-# ---------------- Trainer Shift ----------------
+# ---------------- Shift ----------------
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated, IsAdminOrReadOnly])
-def trainer_shift_view(request):
+def shift_view(request):
     if request.method == "POST":
-        trainer_id = request.data.get("trainer_id")
+        user_id = request.data.get("user_id")  # trainer / worker / maintenance user
         day_of_week = request.data.get("day_of_week")
-        start_time = request.data.get("shift_start_time")
-        end_time = request.data.get("shift_end_time")
+        start_time = request.data.get("start_time")
+        end_time = request.data.get("end_time")
 
         try:
-            trainer = Trainer.objects.get(id=trainer_id, tenant=request.user.tenant)
-        except Trainer.DoesNotExist:
-            return Response({"error": "Trainer not found"}, status=404)
+            user_obj = User.objects.get(id=user_id, tenant=request.user.tenant)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=404)
 
-        shift = TrainerShift.objects.create(
-            trainer=trainer,
+        shift = Shift.objects.create(
+            user=user_obj,
             day_of_week=day_of_week,
-            shift_start_time=start_time,
-            shift_end_time=end_time,
+            start_time=start_time,
+            end_time=end_time,
             tenant=request.user.tenant
         )
 
-        return Response({"message": f"Shift created for {trainer.user.username}"})
+        return Response({"message": f"Shift created for {user_obj.username}"})
 
     # ---------------- GET ----------------
-    shifts = TrainerShift.objects.filter(tenant=request.user.tenant)
-    serializer = TrainerShiftSerializer(shifts, many=True)
+    shifts = Shift.objects.filter(tenant=request.user.tenant)
+    serializer = ShiftSerializer(shifts, many=True)
     return Response(serializer.data)
 
 

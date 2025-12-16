@@ -17,7 +17,7 @@ urlpatterns = [
     path("approve-job/", views.approve_job),
 
     # Trainer workflow
-    path("trainer-shifts/", views.trainer_shift_view),
+    path("shifts/", views.shift_view),
     path("classes/", views.class_view),
     path("trainer/create-pt-assignment/", views.create_pt_assignment),
 ]

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.hashers import make_password
 from django.contrib.auth import authenticate
 from .models import *
+
 # ---------------- Register ----------------
 class RegisterSerializer(serializers.ModelSerializer):
     tenant = serializers.PrimaryKeyRelatedField(
@@ -11,8 +12,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["username", "email", "password", "phone", "gender", "qualification", "tenant"]
-        extra_kwargs = {"password": {"write_only": True}, "phone": {"required": False},
-                        "gender": {"required": False}, "qualification": {"required": False}}
+        extra_kwargs = {
+            "password": {"write_only": True},
+            "phone": {"required": False},
+            "gender": {"required": False},
+            "qualification": {"required": False}
+        }
 
     def create(self, validated_data):
         visitor_role = Role.objects.get(name="visitor")
@@ -44,9 +49,9 @@ class LoginSerializer(serializers.Serializer):
 class MembershipPurchaseSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
     membership_type_id = serializers.IntegerField()
-    shift_id = serializers.IntegerField(required=False, allow_null=True)  # optional
-    class_id = serializers.IntegerField(required=False, allow_null=True)  # optional
-    pt_assignment_id = serializers.IntegerField(required=False, allow_null=True)  # optional
+    shift_id = serializers.IntegerField(required=False, allow_null=True)
+    class_id = serializers.IntegerField(required=False, allow_null=True)
+    pt_assignment_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate(self, data):
         # Validate User
@@ -62,23 +67,19 @@ class MembershipPurchaseSerializer(serializers.Serializer):
         # Validate Shift if provided
         shift_id = data.get("shift_id")
         if shift_id:
-            from .models import Trainer_shift
-            if not Trainer_shift.objects.filter(id=shift_id).exists():
+            if not Shift.objects.filter(id=shift_id).exists():
                 raise serializers.ValidationError({"shift_id": "Shift does not exist"})
         # Validate Class if provided
         class_id = data.get("class_id")
         if class_id:
-            from .models import Class
             if not Class.objects.filter(id=class_id).exists():
                 raise serializers.ValidationError({"class_id": "Class does not exist"})
         # Validate PT Assignment if provided
         pt_id = data.get("pt_assignment_id")
         if pt_id:
-            from .models import PT_Assignment
-            if not PT_Assignment.objects.filter(id=pt_id).exists():
+            if not PTAssignment.objects.filter(id=pt_id).exists():
                 raise serializers.ValidationError({"pt_assignment_id": "PT Assignment does not exist"})
         return data
-
 
 # ---------------- Job Apply ----------------
 class JobApplySerializer(serializers.Serializer):
@@ -92,34 +93,45 @@ class ApproveJobSerializer(serializers.Serializer):
 # ---------------- Interview ----------------
 class InterviewSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField()
-    interviewer_user_id = serializers.IntegerField(required=False)  # optional, default to logged in
+    interviewer_user_id = serializers.IntegerField(required=False)
+    status_id = serializers.IntegerField(required=False)
     remarks = serializers.CharField(required=False, allow_blank=True)
-    
+
     class Meta:
         model = Interview
-        fields = ["user_id", "interviewer_user_id", "interview_date", "remarks"]
+        fields = ["user_id", "interviewer_user_id", "interview_date", "remarks", "status_id"]
 
     def validate(self, data):
-        # Validate candidate user
+        # ---------------- Candidate ----------------
         try:
             candidate = User.objects.get(id=data["user_id"])
         except User.DoesNotExist:
             raise serializers.ValidationError({"user_id": "User not found"})
         data["user"] = candidate
 
-        # Tenant isolation
-        interviewer = self.context['request'].user
+        # ---------------- Interviewer ----------------
+        interviewer = self.context["request"].user
         if candidate.tenant != interviewer.tenant:
-            raise serializers.ValidationError("Candidate and interviewer must belong to the same tenant")
+            raise serializers.ValidationError(
+                "Candidate and interviewer must belong to the same tenant"
+            )
         data["interviewer_user"] = interviewer
 
-        # Default status = Pending
-        status, created = InterviewStatus.objects.get_or_create(name="Pending")
-        data["status"] = status
+        # ---------------- STATUS (FIX) ----------------
+        status_id = data.get("status_id")
+        if status_id:
+            try:
+                status_obj = InterviewStatus.objects.get(id=status_id)
+            except InterviewStatus.DoesNotExist:
+                raise serializers.ValidationError({"status_id": "Invalid status id"})
+        else:
+            status_obj, _ = InterviewStatus.objects.get_or_create(name="Pending")
 
+        data["status"] = status_obj
         return data
 
     def create(self, validated_data):
+        validated_data.pop("status_id", None)
         return Interview.objects.create(
             user=validated_data["user"],
             interviewer_user=validated_data["interviewer_user"],
@@ -129,11 +141,15 @@ class InterviewSerializer(serializers.ModelSerializer):
         )
 
 
-# ---------------- Trainer Shift ----------------
-class TrainerShiftSerializer(serializers.ModelSerializer):
+# ---------------- Shift ----------------
+class ShiftSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    role = serializers.CharField(source='user.role.name', read_only=True)
+
     class Meta:
-        model = TrainerShift
-        fields = ["id", "trainer", "day_of_week", "shift_start_time", "shift_end_time", "tenant"]
+        model = Shift
+        fields = ["id", "user", "username", "role", "day_of_week", "start_time", "end_time", "tenant"]
+
 
 # ---------------- Class ----------------
 class ClassSerializer(serializers.ModelSerializer):

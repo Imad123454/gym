@@ -77,12 +77,12 @@ class InterviewAdmin(admin.ModelAdmin):
     list_filter = ('status', 'interview_date', 'user__tenant')
     search_fields = ('user__username', 'interviewer_user__username')
 
-# ---------------- Trainer Shift ----------------
-@admin.register(TrainerShift)
-class TrainerShiftAdmin(admin.ModelAdmin):
-    list_display = ('trainer', 'day_of_week', 'shift_start_time', 'shift_end_time', 'tenant')
+# ---------------- Shift ----------------
+@admin.register(Shift)
+class ShiftAdmin(admin.ModelAdmin):
+    list_display = ('user', 'day_of_week', 'start_time', 'end_time', 'tenant')
     list_filter = ('day_of_week', 'tenant')
-    search_fields = ('trainer__user__username',)
+    search_fields = ('user__username',)
 
 # ---------------- Classes ----------------
 @admin.register(Class)
@@ -98,9 +98,15 @@ class PTAssignmentAdmin(admin.ModelAdmin):
     list_filter = ('trainer', 'tenant')
     search_fields = ('member__username', 'trainer__user__username')
 
-
 @admin.register(Member)
 class MemberAdmin(admin.ModelAdmin):
-    list_display = ('user', 'joined_at','dob', 'tenant')
+    list_display = ('user', 'joined_at', 'dob', 'tenant')
     list_filter = ('tenant',)
     search_fields = ('user__username',)
+
+
+@admin.register(Receptionist)
+class ReceptionistAdmin(admin.ModelAdmin):
+    list_display = ("id", "user", "tenant")
+    search_fields = ("user__username", "user__email")
+    list_filter = ("tenant",)

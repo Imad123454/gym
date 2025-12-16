@@ -10,6 +10,7 @@ class Tenant(models.Model):
     def __str__(self):
         return self.name
 
+
 # ---------------- Roles ----------------
 class Role(models.Model):
     ROLE_CHOICES = [
@@ -19,11 +20,13 @@ class Role(models.Model):
         ('trainer', 'Trainer'),
         ('worker', 'Worker'),
         ('maintenance', 'Maintenance'),
+        ('receptionist','Receptionist')
     ]
     name = models.CharField(max_length=50, choices=ROLE_CHOICES, unique=True)
 
     def __str__(self):
         return self.name
+
 
 # ---------------- User ----------------
 class User(AbstractUser):
@@ -44,19 +47,20 @@ class User(AbstractUser):
     def __str__(self):
         return self.username
 
-# ---------------- Membership ----------------
+
+# ---------------- Member (after membership purchase) ----------------
 class Member(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     joined_at = models.DateField(auto_now_add=True)
-    dob = models.DateField(null=True, blank=True)  # optional
-    address = models.TextField(null=True, blank=True)  # optional
+    dob = models.DateField(null=True, blank=True)
+    address = models.TextField(null=True, blank=True)
 
     def __str__(self):
         return self.user.username
 
 
-
+# ---------------- Membership ----------------
 class MembershipType(models.Model):
     name = models.CharField(max_length=100)
     price = models.DecimalField(max_digits=10, decimal_places=2)
@@ -66,6 +70,7 @@ class MembershipType(models.Model):
     def __str__(self):
         return f"{self.name} ({self.tenant.name})"
 
+
 class Membership(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     membership_type = models.ForeignKey(MembershipType, on_delete=models.CASCADE)
@@ -74,11 +79,10 @@ class Membership(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
-        username = self.user.username if self.user else "No User"
-        membership_name = self.membership_type.name if self.membership_type else "No Membership"
-        return f"{username} - {membership_name}"
+        return f"{self.membership_type.name}"
 
-# ---------------- Trainer / Worker / Maintenance / Director ----------------
+
+# ---------------- Job Profiles ----------------
 class Trainer(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     experience_years = models.IntegerField(default=0)
@@ -87,22 +91,66 @@ class Trainer(models.Model):
     def __str__(self):
         return self.user.username
 
+
 class Worker(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
+
     def __str__(self):
         return self.user.username
+
 
 class Maintenance(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
+
     def __str__(self):
         return self.user.username
+    
+    
+    
+    
+class Receptionist(models.Model):
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return self.user.username        
+
 
 class Director(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+
     def __str__(self):
         return self.user.username
+
+
+# ---------------- COMMON SHIFT (Trainer / Worker / Maintenance) ----------------
+class Shift(models.Model):
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE)
+    day_of_week = models.CharField(max_length=20)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    def __str__(self):
+        return f"{self.user.username} - {self.day_of_week}"
+
+
+# ---------------- Classes ----------------
+class Class(models.Model):
+    trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    max_members = models.IntegerField()
+    tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
+
+    def __str__(self):
+        return self.name
+
 
 # ---------------- Payment ----------------
 class Payment(models.Model):
@@ -123,15 +171,24 @@ class Payment(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.membership_type.name} - {self.status}"
 
+
 # ---------------- Interview ----------------
 class InterviewStatus(models.Model):
     name = models.CharField(max_length=50)  # Pending / Passed / Failed
+
     def __str__(self):
         return self.name
 
+
 class Interview(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    interviewer_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="interviews_taken")
+    interviewer_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="interviews_taken"
+    )
     interview_date = models.DateTimeField()
     status = models.ForeignKey(InterviewStatus, on_delete=models.SET_NULL, null=True)
     remarks = models.TextField(blank=True, null=True)
@@ -140,28 +197,6 @@ class Interview(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.status.name if self.status else 'Pending'}"
 
-# ---------------- Trainer Shift ----------------
-class TrainerShift(models.Model):
-    trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE)
-    day_of_week = models.CharField(max_length=20)
-    shift_start_time = models.TimeField()
-    shift_end_time = models.TimeField()
-    tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
-
-    def __str__(self):
-        return f"{self.trainer.user.username} - {self.day_of_week}"
-
-# ---------------- Classes ----------------
-class Class(models.Model):
-    trainer = models.ForeignKey(Trainer, on_delete=models.CASCADE)
-    name = models.CharField(max_length=100)
-    start_time = models.TimeField()
-    end_time = models.TimeField()
-    max_members = models.IntegerField()
-    tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
-
-    def __str__(self):
-        return self.name
 
 # ---------------- Personal Training ----------------
 class PTAssignment(models.Model):
