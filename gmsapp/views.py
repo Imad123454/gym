@@ -140,6 +140,8 @@ def approve_job(request):
         Worker.objects.get_or_create(user=user, tenant=user.tenant)
     elif new_role_name == "maintenance":
         Maintenance.objects.get_or_create(user=user, tenant=user.tenant)
+    elif new_role_name == "receptionist":
+        Receptionist.objects.get_or_create(user=user, tenant=user.tenant)    
 
     return Response({"message": f"User role updated → {new_role.name} and profile created"})
 
@@ -367,3 +369,6 @@ def create_pt_assignment(request):
     )
 
     return Response({"message": f"PT Assignment created for member {member.username} with trainer {trainer.user.username}"})
+
+
+

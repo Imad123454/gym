@@ -114,8 +114,7 @@ class Receptionist(models.Model):
     user = models.OneToOneField(User, on_delete=models.SET_NULL, null=True, blank=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.SET_NULL, null=True, blank=True)
 
-    def __str__(self):
-        return self.user.username        
+       
 
 
 class Director(models.Model):
@@ -210,3 +209,52 @@ class PTAssignment(models.Model):
 
     def __str__(self):
         return f"{self.member.username} - {self.trainer.user.username}"
+
+
+class AttendanceStatus(models.Model):
+    name = models.CharField(max_length=20)  # Present / Absent / Leave
+
+    def __str__(self):
+        return self.name
+
+
+class Attendance(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    marked_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="marked_attendance"
+    )
+
+    role = models.CharField(max_length=20)  # trainer / member / maintenance / receptionist
+
+    trainer = models.ForeignKey(
+        Trainer,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    gym_class = models.ForeignKey(
+        Class,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    date = models.DateField(auto_now_add=True)
+
+    status = models.ForeignKey(
+        AttendanceStatus,
+        on_delete=models.CASCADE
+    )
+
+    remarks = models.TextField(blank=True)
+
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ("user", "date", "tenant")
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date} - {self.status.name}"

@@ -110,3 +110,73 @@ class ReceptionistAdmin(admin.ModelAdmin):
     list_display = ("id", "user", "tenant")
     search_fields = ("user__username", "user__email")
     list_filter = ("tenant",)
+    
+    
+    
+    
+    
+    
+@admin.register(AttendanceStatus)
+class AttendanceStatusAdmin(admin.ModelAdmin):
+    list_display = ("id", "name")
+    search_fields = ("name",)
+
+
+@admin.register(Attendance)
+class AttendanceAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "role",
+        "status",
+        "date",
+        "tenant",
+        "marked_by"
+    )
+
+    list_filter = (
+        "role",
+        "status",
+        "date",
+        "tenant"
+    )
+
+    search_fields = (
+        "user__username",
+        "marked_by__username"
+    )
+
+    readonly_fields = (
+        "date",
+        "marked_by",
+        "tenant",
+        "role"
+    )
+
+    ordering = ("-date",)
+
+    fieldsets = (
+        ("Attendance Info", {
+            "fields": (
+                "user",
+                "status",
+                "remarks"
+            )
+        }),
+        ("Member Specific (optional)", {
+            "fields": (
+                "trainer",
+                "gym_class"
+            )
+        }),
+        ("System Info", {
+            "fields": (
+                "role",
+                "marked_by",
+                "tenant",
+                "date"
+            )
+        }),
+    )
+
+    

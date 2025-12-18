@@ -88,7 +88,7 @@ class JobApplySerializer(serializers.Serializer):
 # ---------------- Admin Approve Job ----------------
 class ApproveJobSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
-    new_role = serializers.ChoiceField(choices=["trainer", "worker", "maintenance"])
+    new_role = serializers.ChoiceField(choices=["trainer", "worker", "maintenance","receptionist"])
 
 # ---------------- Interview ----------------
 class InterviewSerializer(serializers.ModelSerializer):
@@ -169,3 +169,41 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         fields = ["id", "user", "membership_type", "amount", "razorpay_order_id", "razorpay_payment_id",
                   "razorpay_signature", "status", "created_at"]
+
+
+
+class ReceptionistSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField(write_only=True)
+    username = serializers.CharField(source="user.username", read_only=True)
+    email = serializers.EmailField(source="user.email", read_only=True)
+    tenant_name = serializers.CharField(source="tenant.name", read_only=True)
+
+    class Meta:
+        model = Receptionist
+        fields = [
+            "id",
+            "user_id",
+            "username",
+            "email",
+            "tenant",
+            "tenant_name",
+        ]
+
+    def create(self, validated_data):
+        user_id = validated_data.pop("user_id")
+        user = User.objects.get(id=user_id)
+
+        return Receptionist.objects.create(
+            user=user,
+            tenant=user.tenant
+        )
+        
+        
+        
+        
+        
+class AttendanceSerializer(serializers.ModelSerializer):
+    user_id = serializers.IntegerField()
+    status_id = serializers.IntegerField()
+    class_id = serializers.IntegerField(required=False)
+
