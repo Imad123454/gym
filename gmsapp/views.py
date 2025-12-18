@@ -12,6 +12,7 @@ from rest_framework import status
 
 client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
+# ---------------- Helper ----------------
 def check_tenant(user, tenant):
     if user.tenant != tenant:
         return False
@@ -194,6 +195,7 @@ def verify_payment(request):
     payment.status = "paid"
     payment.save()
 
+    # ---------------- Membership ----------------
     start_date = timezone.now().date()
     end_date = start_date + timezone.timedelta(days=payment.membership_type.duration_days)
     membership = Membership.objects.create(
@@ -204,11 +206,13 @@ def verify_payment(request):
         tenant=user.tenant
     )
 
+    # ---------------- User role update ----------------
     member_role = Role.objects.get(name="member")
     user.role = member_role
     user.register_for_membership = True
     user.save()
 
+    # ---------------- Member object ----------------
     member = Member.objects.create(
         tenant=user.tenant,
         user=user,
@@ -230,6 +234,7 @@ def verify_payment(request):
         }
     }
 
+    # Optional: assign shift/class if ids provided
     if shift_id:
         shift = Shift.objects.get(id=shift_id, tenant=user.tenant)
         response_data["shift"] = {
@@ -283,19 +288,23 @@ def shift_view(request):
 
         return Response({"message": f"Shift created for {user_obj.username}"})
 
+    # ---------------- GET ----------------
     shifts = Shift.objects.filter(tenant=request.user.tenant)
     serializer = ShiftSerializer(shifts, many=True)
     return Response(serializer.data)
 
 
+# ---------------- Class ----------------
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def class_view(request):
     user = request.user
 
+    # ---------------- Tenant isolation like login ----------------
     if user.tenant.domain != request.get_host().split(":")[0]:
         return Response({"detail": "Invalid tenant"}, status=403)
 
+    # ---------------- POST ----------------
     if request.method == "POST":
         trainer_id = request.data.get("trainer_id")
         name = request.data.get("name")
@@ -303,6 +312,7 @@ def class_view(request):
         end_time = request.data.get("end_time")
         max_members = request.data.get("max_members")
 
+        # Trainer must belong to same tenant
         try:
             trainer = Trainer.objects.get(id=trainer_id, tenant=user.tenant)
         except Trainer.DoesNotExist:
@@ -319,13 +329,14 @@ def class_view(request):
 
         return Response({"message": f"Class '{name}' created for trainer {trainer.user.username}"})
 
+    # ---------------- GET ----------------
     if user.role.name == "director":
-        classes = Class.objects.all() 
+        classes = Class.objects.all()  # director sees all tenants
     elif user.role.name == "trainer":
         trainer = Trainer.objects.get(user=user)
-        classes = Class.objects.filter(trainer=trainer)  
+        classes = Class.objects.filter(trainer=trainer)  # trainer sees only own classes
     else:
-        classes = Class.objects.filter(tenant=user.tenant)  
+        classes = Class.objects.filter(tenant=user.tenant)  # others see only tenant classes
 
     serializer = ClassSerializer(classes, many=True)
     return Response(serializer.data)
@@ -360,4 +371,22 @@ def create_pt_assignment(request):
     return Response({"message": f"PT Assignment created for member {member.username} with trainer {trainer.user.username}"})
 
 
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def mark_attendance(request):
+    serializer = AttendanceSerializer(
+        data=request.data,
+        context={"request": request}
+    )
+    serializer.is_valid(raise_exception=True)
+    attendance = serializer.save()
+
+    return Response({
+        "message": "Attendance marked successfully",
+        "user": attendance.user.username,
+        "role": attendance.role,
+        "date": attendance.date,
+        "status": attendance.status.name
+    }, status=201)
 

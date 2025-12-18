@@ -23,5 +23,5 @@ urlpatterns = [
     
     
     # attendance
-    # path("attendance/",views.mark_attendance)
+    path("attendance/",views.mark_attendance)
 ]
