@@ -54,27 +54,22 @@ class MembershipPurchaseSerializer(serializers.Serializer):
     pt_assignment_id = serializers.IntegerField(required=False, allow_null=True)
 
     def validate(self, data):
-        # Validate User
         try:
             user = User.objects.get(id=data["user_id"])
         except User.DoesNotExist:
             raise serializers.ValidationError({"user_id": "User does not exist"})
-        # Validate Membership Type
         try:
             membership_type = MembershipType.objects.get(id=data["membership_type_id"])
         except MembershipType.DoesNotExist:
             raise serializers.ValidationError({"membership_type_id": "MembershipType does not exist"})
-        # Validate Shift if provided
         shift_id = data.get("shift_id")
         if shift_id:
             if not Shift.objects.filter(id=shift_id).exists():
                 raise serializers.ValidationError({"shift_id": "Shift does not exist"})
-        # Validate Class if provided
         class_id = data.get("class_id")
         if class_id:
             if not Class.objects.filter(id=class_id).exists():
                 raise serializers.ValidationError({"class_id": "Class does not exist"})
-        # Validate PT Assignment if provided
         pt_id = data.get("pt_assignment_id")
         if pt_id:
             if not PTAssignment.objects.filter(id=pt_id).exists():
@@ -117,7 +112,6 @@ class InterviewSerializer(serializers.ModelSerializer):
             )
         data["interviewer_user"] = interviewer
 
-        # ---------------- STATUS (FIX) ----------------
         status_id = data.get("status_id")
         if status_id:
             try:
