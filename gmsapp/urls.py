@@ -20,8 +20,15 @@ urlpatterns = [
     path("shifts/", views.shift_view),
     path("classes/", views.class_view),
     path("trainer/create-pt-assignment/", views.create_pt_assignment),
+        path('inquiries/', views.inquiry_create_view, name='inquiry-create'),
+
     
     
     # attendance
-    # path("attendance/",views.mark_attendance)
+    path("attendance/",views.mark_attendance),
+    
+    
+    # profile
+    path("my-profile/", views.my_profile)
+
 ]
