@@ -179,4 +179,5 @@ class AttendanceAdmin(admin.ModelAdmin):
         }),
     )
 
-    
+admin.site.register(Inquiry)    
+admin.site.register(InquiryStatus)

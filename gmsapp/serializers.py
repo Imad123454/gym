@@ -155,6 +155,7 @@ class ShiftSerializer(serializers.ModelSerializer):
 class ClassSerializer(serializers.ModelSerializer):
     class Meta:
         model = Class
+        
         fields = ["id", "trainer", "name", "start_time", "end_time", "max_members", "tenant"]
 
 # ---------------- Personal Training ----------------
@@ -273,3 +274,64 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return Attendance.objects.create(**validated_data)
+    
+    
+    
+    
+    
+    
+from gmsapp.services.telegram import *
+class InquirySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Inquiry
+        fields = ["id", "subject", "message"]
+
+    def create(self, validated_data):
+        request = self.context.get("request")
+        user = request.user
+
+        # Ensure tenant exists
+        tenant = getattr(user, 'tenant', None)
+        if not tenant:
+            print("❌ User has no tenant! Telegram may not work correctly")
+
+        inquiry = Inquiry.objects.create(
+            created_by=user,
+            tenant=tenant,
+            subject=validated_data["subject"],
+            message=validated_data["message"],
+            status=InquiryStatus.objects.get(name="pending")
+        )
+
+        print(f"🔥 Inquiry created: {inquiry.id}")
+
+        # Send Telegram message
+        send_inquiry_to_telegram(inquiry)
+
+        return inquiry
+    
+    
+    
+
+
+class MyProfileSerializer(serializers.ModelSerializer):
+    
+    profile_image = serializers.ImageField(required=False)  # rename
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "email",
+            "phone",
+            "gender",
+            "qualification",
+            "profile_image",  # ab ye URL hi return karega
+        ]
+
+    def get_profile_image(self, obj):
+        request = self.context.get("request")
+        if obj.profile_image and request:
+            return request.build_absolute_uri(obj.profile_image.url)
+        return None

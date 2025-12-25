@@ -1,30 +1,51 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
-from .models import *
-from .serializers import *
-from .permissions import *
-import razorpay
+# ---------------- Django / DRF ----------------
 from django.conf import settings
 from django.utils import timezone
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.views.decorators.csrf import csrf_exempt
+
+from rest_framework.decorators import api_view, permission_classes,authentication_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.response import Response
 from rest_framework import status
+
+from rest_framework_simplejwt.tokens import RefreshToken
+
+# ---------------- Razorpay ----------------
+import razorpay
+
+# ---------------- Models ----------------
+from .models import (
+    User, Tenant, Role, Trainer, Worker, Maintenance, Receptionist,
+    MembershipType, Payment, Membership, Member, Shift, Class,
+    PTAssignment, Attendance, Inquiry
+)
+
+# ---------------- Serializers ----------------
+from .serializers import (
+    RegisterSerializer, LoginSerializer, MyProfileSerializer,
+    JobApplySerializer, InterviewSerializer, ApproveJobSerializer,
+    ShiftSerializer, ClassSerializer, PTAssignmentSerializer,
+    AttendanceSerializer, InquirySerializer
+)
+
+# ---------------- Permissions ----------------
+from .permissions import IsAdminOrReadOnly
+
 
 client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 # ---------------- Helper ----------------
 def check_tenant(user, tenant):
-    if user.tenant != tenant:
-        return False
-    return True
+    return user.tenant == tenant
 
 # ---------------- Register ----------------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def register(request):
     tenant = request.user.tenant
-    if request.user.role.name != "director":
-        return Response({"detail": "Only directors can create users"}, status=403)
+    if request.user.role.name != "receptionist":
+        return Response({"detail": "Only receptionist can create users"}, status=403)
 
     serializer = RegisterSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
@@ -39,20 +60,24 @@ def register(request):
     })
 
 # ---------------- Login ----------------
-@api_view(["POST"])
+
+@csrf_exempt
+@api_view(['POST'])
 @permission_classes([AllowAny])
+@authentication_classes([])
 def login(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
+
     user = serializer.validated_data["user"]
 
-    if user.tenant.domain != request.get_host().split(":")[0]:
-        return Response({"detail": "Invalid tenant"}, status=403)
+    # ✅ Tenant automatically detect
+    tenant_name = getattr(request, "tenant_name", user.tenant.name)
 
     refresh = RefreshToken.for_user(user)
     access = refresh.access_token
     access["role"] = user.role.name if user.role else None
-    access["tenant"] = user.tenant.name
+    access["tenant"] = tenant_name
 
     return Response({
         "message": "Login successful",
@@ -60,8 +85,8 @@ def login(request):
             "id": user.id,
             "username": user.username,
             "email": user.email,
-            "role": user.role.name,
-            "tenant": user.tenant.name
+            "role": user.role.name if user.role else None,
+            "tenant": tenant_name
         },
         "tokens": {
             "refresh": str(refresh),
@@ -98,6 +123,33 @@ def apply_job(request):
         "experience_years": serializer.validated_data.get("experience_years")
     })
 
+# ---------------- Profile ----------------
+@api_view(["GET", "PUT", "PATCH"])
+@permission_classes([IsAuthenticated])
+def my_profile(request):
+    user = request.user
+
+    # Tenant isolation check
+    current_domain = request.get_host().split(":")[0]
+    if user.tenant.domain != current_domain:
+        return Response({"detail": "Invalid tenant"}, status=403)
+
+    if request.method == "GET":
+        serializer = MyProfileSerializer(user, context={"request": request})
+        return Response(serializer.data)
+
+    # For PUT/PATCH
+    request.parsers = [MultiPartParser(), FormParser()]
+
+    serializer = MyProfileSerializer(
+        user,
+        data=request.data,
+        partial=True,
+        context={"request": request}
+    )
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response(serializer.data)
 # ---------------- Interview ----------------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsAdminOrReadOnly])
@@ -106,7 +158,7 @@ def create_interview(request):
     if serializer.is_valid():
         interview = serializer.save()
         return Response({
-            "message": "Interview created successfully",
+            "message": "Interview created successfully",                      
             "interview": {
                 "id": interview.id,
                 "user": interview.user.username,
@@ -141,7 +193,7 @@ def approve_job(request):
     elif new_role_name == "maintenance":
         Maintenance.objects.get_or_create(user=user, tenant=user.tenant)
     elif new_role_name == "receptionist":
-        Receptionist.objects.get_or_create(user=user, tenant=user.tenant)    
+        Receptionist.objects.get_or_create(user=user, tenant=user.tenant)
 
     return Response({"message": f"User role updated → {new_role.name} and profile created"})
 
@@ -256,19 +308,17 @@ def verify_payment(request):
         except Class.DoesNotExist:
             response_data["class"] = None
 
-
     return Response({
         "message": "Payment verified, membership purchased & member created successfully!",
         "data": response_data
     })
-
 
 # ---------------- Shift ----------------
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated, IsAdminOrReadOnly])
 def shift_view(request):
     if request.method == "POST":
-        user_id = request.data.get("user_id")  # trainer / worker / maintenance user
+        user_id = request.data.get("user_id")
         day_of_week = request.data.get("day_of_week")
         start_time = request.data.get("start_time")
         end_time = request.data.get("end_time")
@@ -288,11 +338,9 @@ def shift_view(request):
 
         return Response({"message": f"Shift created for {user_obj.username}"})
 
-    # ---------------- GET ----------------
     shifts = Shift.objects.filter(tenant=request.user.tenant)
     serializer = ShiftSerializer(shifts, many=True)
     return Response(serializer.data)
-
 
 # ---------------- Class ----------------
 @api_view(["GET", "POST"])
@@ -300,11 +348,9 @@ def shift_view(request):
 def class_view(request):
     user = request.user
 
-    # ---------------- Tenant isolation like login ----------------
     if user.tenant.domain != request.get_host().split(":")[0]:
         return Response({"detail": "Invalid tenant"}, status=403)
 
-    # ---------------- POST ----------------
     if request.method == "POST":
         trainer_id = request.data.get("trainer_id")
         name = request.data.get("name")
@@ -312,7 +358,6 @@ def class_view(request):
         end_time = request.data.get("end_time")
         max_members = request.data.get("max_members")
 
-        # Trainer must belong to same tenant
         try:
             trainer = Trainer.objects.get(id=trainer_id, tenant=user.tenant)
         except Trainer.DoesNotExist:
@@ -329,18 +374,17 @@ def class_view(request):
 
         return Response({"message": f"Class '{name}' created for trainer {trainer.user.username}"})
 
-    # ---------------- GET ----------------
     if user.role.name == "director":
-        classes = Class.objects.all()  # director sees all tenants
+        classes = Class.objects.all()
     elif user.role.name == "trainer":
         trainer = Trainer.objects.get(user=user)
-        classes = Class.objects.filter(trainer=trainer)  # trainer sees only own classes
+        classes = Class.objects.filter(trainer=trainer)
     else:
-        classes = Class.objects.filter(tenant=user.tenant)  # others see only tenant classes
+        classes = Class.objects.filter(tenant=user.tenant)
 
     serializer = ClassSerializer(classes, many=True)
     return Response(serializer.data)
- 
+
 # ---------------- PT Assignment ----------------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsAdminOrReadOnly])
@@ -370,8 +414,7 @@ def create_pt_assignment(request):
 
     return Response({"message": f"PT Assignment created for member {member.username} with trainer {trainer.user.username}"})
 
-
-
+# ---------------- Attendance ----------------
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def mark_attendance(request):
@@ -390,3 +433,11 @@ def mark_attendance(request):
         "status": attendance.status.name
     }, status=201)
 
+# ---------------- Inquiry ----------------
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def inquiry_create_view(request):
+    serializer = InquirySerializer(data=request.data, context={"request": request})
+    serializer.is_valid(raise_exception=True)
+    serializer.save()
+    return Response({"message": "Inquiry submitted successfully"}, status=status.HTTP_201_CREATED)

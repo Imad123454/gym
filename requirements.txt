@@ -1,0 +1,8 @@
+Django>=4.2
+djangorestframework
+djangorestframework-simplejwt
+mysqlclient
+django-hosts
+whitenoise
+django-cors-headers
+gunicorn
