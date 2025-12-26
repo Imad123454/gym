@@ -12,11 +12,9 @@ DEBUG = False  # production
 # =========================
 # ALLOWED HOSTS
 # =========================
-ALLOWED_HOSTS = [
-    "projectname.up.railway.app", 
-    "pathanfitness.com", 
-    "hgym.com"
-]
+ALLOWED_HOSTS = ["*"]
+
+
 
 # =========================
 # CORS / CSRF
@@ -64,16 +62,20 @@ INSTALLED_APPS = [
 # =========================
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
+
     "django_hosts.middleware.HostsRequestMiddleware",
+
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",  # static files
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "gmsapp.middleware.TenantMiddleware",  # multi-tenant AFTER auth
+
+    "gmsapp.middleware.TenantMiddleware",
+
     "django_hosts.middleware.HostsResponseMiddleware",
 ]
 
