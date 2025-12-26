@@ -6,3 +6,4 @@ django-hosts
 whitenoise
 django-cors-headers
 gunicorn
+razorpay
